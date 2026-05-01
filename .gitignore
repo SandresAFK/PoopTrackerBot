@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-wheel-metadata/
+
+# Local data
+poop.db
+*.db-journal
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

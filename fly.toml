@@ -1,0 +1,20 @@
+app = 'poop-tracker-bot'
+primary_region = 'sin'
+
+[build]
+
+[processes]
+  app = "python poop_bot.py"
+
+[[restart]]
+  policy = "always"
+  processes = ["app"]
+
+[[mounts]]
+  source = "poop_data"
+  destination = "/data"
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024
