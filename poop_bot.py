@@ -27,6 +27,94 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+TEXT = {
+    "ru": {
+        "btn_poop": "💩  Я посрал!",
+        "btn_leaderboard": "🏆 Таблица лидеров",
+        "btn_reviews": "📖 Отзывы друзей",
+        "btn_my_stats": "📊 Моя статистика",
+        "btn_all_events": "📜 Все события",
+        "btn_skip": "⏭  Пропустить",
+        "btn_back": "◀️ Назад",
+        "btn_prev": "⬅️ Ранее",
+        "btn_next": "➡️ Позже",
+        "start": (
+            "👋 Привет, {name}!\n\n"
+            "Добро пожаловать в 💩 *Poop Tracker* —\n"
+            "самый честный дневник жизнедеятельности твоей компании!\n\n"
+            "Нажми кнопку, когда природа позвала 👇"
+        ),
+        "ask_review": "📝 Расскажи как посрал:\n",
+        "review_saved": "📝 *Отзыв сохранён!* Потомки оценят.\n\n",
+        "what_next": "Что дальше?",
+        "skip_review_done": "👌 Окей, без отзыва. Главное — факт зафиксирован!\n\nЧто дальше?",
+        "leaderboard_empty": "🏆 *Таблица лидеров пуста*\n\nБудь первым — нажми 💩!",
+        "leaderboard_title": "🏆 *ТАБЛИЦА ЛИДЕРОВ*\n_(кто больше — тот чемпион)_\n",
+        "reviews_empty": "📖 *Отзывов пока нет*\n\nПокакай и оставь первый!",
+        "reviews_title": "📖 *ОТЗЫВЫ ТВОИХ ДРУЗЕЙ*\n",
+        "all_events_empty": "📜 *Событий пока нет*\n\nНажми 💩, чтобы добавить первое.",
+        "all_events_title": "📜 *ВСЕ СОБЫТИЯ* ({start}-{end} из {total})\n",
+        "my_stats_title": "📊 *Твоя статистика*",
+        "my_stats_total": "💩 Всего раз: *{total}*",
+        "my_stats_with_review": "📝 С отзывом: *{with_review}*",
+        "my_stats_rank": "🏆 Место в рейтинге: *{rank}*",
+        "my_events_title": "🕒 *Твои события* ({start}-{end} из {total}):",
+        "menu_title": "💩 *Poop Tracker*\n\nЧто хочешь сделать?",
+        "cancel": "Окей, отменено.",
+    },
+    "en": {
+        "btn_poop": "💩  I pooped!",
+        "btn_leaderboard": "🏆 Leaderboard",
+        "btn_reviews": "📖 Friends' reviews",
+        "btn_my_stats": "📊 My stats",
+        "btn_all_events": "📜 All events",
+        "btn_skip": "⏭  Skip",
+        "btn_back": "◀️ Back",
+        "btn_prev": "⬅️ Earlier",
+        "btn_next": "➡️ Later",
+        "start": (
+            "👋 Hi, {name}!\n\n"
+            "Welcome to 💩 *Poop Tracker* —\n"
+            "the most honest activity log for your crew!\n\n"
+            "Tap a button when nature calls 👇"
+        ),
+        "ask_review": "📝 Tell us how it went:\n",
+        "review_saved": "📝 *Saved!* Future generations will appreciate it.\n\n",
+        "what_next": "What next?",
+        "skip_review_done": "👌 Ok, no review. The important part is logged!\n\nWhat next?",
+        "leaderboard_empty": "🏆 *Leaderboard is empty*\n\nBe the first — tap 💩!",
+        "leaderboard_title": "🏆 *LEADERBOARD*\n_(most poops wins)_\n",
+        "reviews_empty": "📖 *No reviews yet*\n\nPoop and leave the first one!",
+        "reviews_title": "📖 *YOUR FRIENDS' REVIEWS*\n",
+        "all_events_empty": "📜 *No events yet*\n\nTap 💩 to add the first one.",
+        "all_events_title": "📜 *ALL EVENTS* ({start}-{end} of {total})\n",
+        "my_stats_title": "📊 *Your stats*",
+        "my_stats_total": "💩 Total: *{total}*",
+        "my_stats_with_review": "📝 With review: *{with_review}*",
+        "my_stats_rank": "🏆 Rank: *{rank}*",
+        "my_events_title": "🕒 *Your events* ({start}-{end} of {total}):",
+        "menu_title": "💩 *Poop Tracker*\n\nWhat do you want to do?",
+        "cancel": "Okay, cancelled.",
+    },
+}
+
+
+def get_lang(update: Update | None) -> str:
+    try:
+        code = (update.effective_user.language_code or "").lower() if update and update.effective_user else ""
+    except Exception:
+        code = ""
+    return "en" if code.startswith("en") else "ru"
+
+
+def tr(update: Update | None, key: str, **kwargs) -> str:
+    lang = get_lang(update)
+    template = TEXT.get(lang, TEXT["ru"]).get(key) or TEXT["ru"].get(key) or key
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return str(template)
+
 
 # ─── БАЗА ДАННЫХ ───────────────────────────────────────────────
 async def init_db():
@@ -176,26 +264,35 @@ def format_time(iso_str: str) -> str:
 
 def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💩  Я посрал!", callback_data="poop")],
+        [InlineKeyboardButton(TEXT["ru"]["btn_poop"], callback_data="poop")],
         [
-            InlineKeyboardButton("🏆 Таблица лидеров", callback_data="leaderboard"),
-            InlineKeyboardButton("📖 Отзывы друзей",   callback_data="reviews"),
+            InlineKeyboardButton(TEXT["ru"]["btn_leaderboard"], callback_data="leaderboard"),
+            InlineKeyboardButton(TEXT["ru"]["btn_reviews"],   callback_data="reviews"),
         ],
-        [InlineKeyboardButton("📊 Моя статистика", callback_data="my_stats:0")],
-        [InlineKeyboardButton("📜 Все события", callback_data="all_events:0")],
+        [InlineKeyboardButton(TEXT["ru"]["btn_my_stats"], callback_data="my_stats:0")],
+        [InlineKeyboardButton(TEXT["ru"]["btn_all_events"], callback_data="all_events:0")],
+    ])
+
+
+def main_keyboard_for(update: Update):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(tr(update, "btn_poop"), callback_data="poop")],
+        [
+            InlineKeyboardButton(tr(update, "btn_leaderboard"), callback_data="leaderboard"),
+            InlineKeyboardButton(tr(update, "btn_reviews"), callback_data="reviews"),
+        ],
+        [InlineKeyboardButton(tr(update, "btn_my_stats"), callback_data="my_stats:0")],
+        [InlineKeyboardButton(tr(update, "btn_all_events"), callback_data="all_events:0")],
     ])
 
 
 # ─── ХЭНДЛЕРЫ ─────────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.effective_user.first_name or "друг"
+    name = update.effective_user.first_name or "friend"
     await update.message.reply_text(
-        f"👋 Привет, {name}!\n\n"
-        "Добро пожаловать в 💩 *Poop Tracker* —\n"
-        "самый честный дневник жизнедеятельности твоей компании!\n\n"
-        "Нажми кнопку, когда природа позвала 👇",
+        tr(update, "start", name=name),
         parse_mode="Markdown",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard_for(update)
     )
 
 
@@ -243,10 +340,10 @@ async def handle_poop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["last_poop_id"] = poop_id
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏭  Пропустить", callback_data="skip_review")]
+        [InlineKeyboardButton(tr(update, "btn_skip"), callback_data="skip_review")]
     ])
     await query.edit_message_text(
-        "📝 Расскажи как посрал:\n",
+        tr(update, "ask_review"),
         parse_mode="Markdown",
         reply_markup=keyboard
     )
@@ -259,14 +356,14 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if poop_id and review:
         await update_review(poop_id, review)
-        msg = "📝 *Отзыв сохранён!* Потомки оценят.\n\n"
+        msg = tr(update, "review_saved")
     else:
         msg = ""
 
     await update.message.reply_text(
-        msg + "Что дальше?",
+        msg + tr(update, "what_next"),
         parse_mode="Markdown",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard_for(update)
     )
     return ConversationHandler.END
 
@@ -274,8 +371,8 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def skip_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.edit_message_text(
-        "👌 Окей, без отзыва. Главное — факт зафиксирован!\n\nЧто дальше?",
-        reply_markup=main_keyboard()
+        tr(update, "skip_review_done"),
+        reply_markup=main_keyboard_for(update)
     )
     return ConversationHandler.END
 
@@ -285,16 +382,16 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = await get_leaderboard()
 
     if not rows:
-        text = "🏆 *Таблица лидеров пуста*\n\nБудь первым — нажми 💩!"
+        text = tr(update, "leaderboard_empty")
     else:
-        lines = ["🏆 *ТАБЛИЦА ЛИДЕРОВ*\n_(кто больше — тот чемпион)_\n"]
+        lines = [tr(update, "leaderboard_title")]
         for i, row in enumerate(rows):
             lines.append(f"{medal(i)} {row['username']} — *{row['cnt']}* раз")
         text = "\n".join(lines)
 
     await query.edit_message_text(
         text, parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="back")]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr(update, "btn_back"), callback_data="back")]])
     )
 
 
@@ -303,9 +400,9 @@ async def show_reviews(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = await get_reviews()
 
     if not rows:
-        text = "📖 *Отзывов пока нет*\n\nПокакай и оставь первый!"
+        text = tr(update, "reviews_empty")
     else:
-        lines = ["📖 *ОТЗЫВЫ ТВОИХ ДРУЗЕЙ*\n"]
+        lines = [tr(update, "reviews_title")]
         for row in rows:
             lines.append(f"*{row['username']}* [{format_time(row['timestamp'])}]")
             lines.append(f"_{row['review']}_\n")
@@ -313,7 +410,7 @@ async def show_reviews(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         text, parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="back")]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr(update, "btn_back"), callback_data="back")]])
     )
 
 async def show_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE, offset: int = 0):
@@ -325,11 +422,11 @@ async def show_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE, of
     rows = await get_all_events_page(limit=limit, offset=offset)
 
     if not rows:
-        text = "📜 *Событий пока нет*\n\nНажми 💩, чтобы добавить первое."
+        text = tr(update, "all_events_empty")
     else:
         start_n = offset + 1
         end_n = min(offset + limit, total)
-        lines = [f"📜 *ВСЕ СОБЫТИЯ* ({start_n}-{end_n} из {total})\n"]
+        lines = [tr(update, "all_events_title", start=start_n, end=end_n, total=total)]
         for row in rows:
             username = escape_markdown(str(row["username"]), version=1)
             ts = format_time(row["timestamp"])
@@ -345,13 +442,13 @@ async def show_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE, of
     prev_offset = offset - limit
     next_offset = offset + limit
     if prev_offset >= 0:
-        nav.append(InlineKeyboardButton("⬅️ Ранее", callback_data=f"all_events:{prev_offset}"))
+        nav.append(InlineKeyboardButton(tr(update, "btn_prev"), callback_data=f"all_events:{prev_offset}"))
     if next_offset < total:
-        nav.append(InlineKeyboardButton("➡️ Позже", callback_data=f"all_events:{next_offset}"))
+        nav.append(InlineKeyboardButton(tr(update, "btn_next"), callback_data=f"all_events:{next_offset}"))
     kb_rows = []
     if nav:
         kb_rows.append(nav)
-    kb_rows.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
+    kb_rows.append([InlineKeyboardButton(tr(update, "btn_back"), callback_data="back")])
 
     await query.edit_message_text(
         text,
@@ -402,12 +499,12 @@ async def show_my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, offs
     kb_rows.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
 
     await query.edit_message_text(
-        f"📊 *Твоя статистика*\n\n"
+        f"{tr(update, 'my_stats_title')}\n\n"
         f"👤 {username}\n"
-        f"💩 Всего раз: *{total}*\n"
-        f"📝 С отзывом: *{with_review}*\n"
-        f"🏆 Место в рейтинге: *{rank}*\n\n"
-        f"🕒 *Твои события* ({start_n}-{end_n} из {user_total}):\n{events_block}",
+        f"{tr(update, 'my_stats_total', total=total)}\n"
+        f"{tr(update, 'my_stats_with_review', with_review=with_review)}\n"
+        f"{tr(update, 'my_stats_rank', rank=rank)}\n\n"
+        f"{tr(update, 'my_events_title', start=start_n, end=end_n, total=user_total)}\n{events_block}",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(kb_rows)
     )
@@ -416,14 +513,14 @@ async def show_my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, offs
 async def back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.edit_message_text(
-        "💩 *Poop Tracker*\n\nЧто хочешь сделать?",
+        tr(update, "menu_title"),
         parse_mode="Markdown",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard_for(update)
     )
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Окей, отменено.", reply_markup=main_keyboard())
+    await update.message.reply_text(tr(update, "cancel"), reply_markup=main_keyboard_for(update))
     return ConversationHandler.END
 
 
