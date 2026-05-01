@@ -8,6 +8,7 @@ import aiosqlite
 import os
 from datetime import datetime, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.helpers import escape_markdown
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes, ConversationHandler
@@ -96,6 +97,65 @@ async def get_user_stats(user_id: int):
         """, (user_id,)) as cursor:
             return await cursor.fetchone()
 
+async def get_user_events(user_id: int, limit: int = 50):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, timestamp, review
+            FROM poops
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def get_user_events_page(user_id: int, limit: int, offset: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, timestamp, review
+            FROM poops
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (user_id, limit, offset),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def get_user_events_count(user_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM poops WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return int(row[0] if row else 0)
+
+
+async def get_all_events_page(limit: int, offset: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, user_id, username, timestamp, review
+            FROM poops
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        ) as cursor:
+            return await cursor.fetchall()
+
+async def get_all_events_count() -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM poops") as cursor:
+            row = await cursor.fetchone()
+            return int(row[0] if row else 0)
+
 
 # ─── ХЕЛПЕРЫ ──────────────────────────────────────────────────
 def get_username(user) -> str:
@@ -111,7 +171,7 @@ def medal(pos: int) -> str:
 
 def format_time(iso_str: str) -> str:
     dt = datetime.fromisoformat(iso_str).astimezone()
-    return dt.strftime("%d.%m %H:%M")
+    return dt.strftime("%d.%m %H:%M:%S")
 
 
 def main_keyboard():
@@ -121,7 +181,8 @@ def main_keyboard():
             InlineKeyboardButton("🏆 Таблица лидеров", callback_data="leaderboard"),
             InlineKeyboardButton("📖 Отзывы друзей",   callback_data="reviews"),
         ],
-        [InlineKeyboardButton("📊 Моя статистика", callback_data="my_stats")],
+        [InlineKeyboardButton("📊 Моя статистика", callback_data="my_stats:0")],
+        [InlineKeyboardButton("📜 Все события", callback_data="all_events:0")],
     ])
 
 
@@ -142,11 +203,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    # Пагинация
+    if query.data.startswith("all_events"):
+        offset = 0
+        if ":" in query.data:
+            try:
+                offset = max(0, int(query.data.split(":", 1)[1]))
+            except ValueError:
+                offset = 0
+        return await show_all_events(update, context, offset=offset)
+
+    if query.data.startswith("my_stats"):
+        offset = 0
+        if ":" in query.data:
+            try:
+                offset = max(0, int(query.data.split(":", 1)[1]))
+            except ValueError:
+                offset = 0
+        return await show_my_stats(update, context, offset=offset)
+
     dispatch = {
         "poop":        handle_poop,
         "leaderboard": show_leaderboard,
         "reviews":     show_reviews,
-        "my_stats":    show_my_stats,
         "skip_review": skip_review,
         "back":        back_to_menu,
     }
@@ -237,8 +316,51 @@ async def show_reviews(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="back")]])
     )
 
+async def show_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE, offset: int = 0):
+    query = update.callback_query
+    limit = 25
+    total = await get_all_events_count()
+    if offset >= total and total > 0:
+        offset = max(0, total - (total % limit or limit))
+    rows = await get_all_events_page(limit=limit, offset=offset)
 
-async def show_my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not rows:
+        text = "📜 *Событий пока нет*\n\nНажми 💩, чтобы добавить первое."
+    else:
+        start_n = offset + 1
+        end_n = min(offset + limit, total)
+        lines = [f"📜 *ВСЕ СОБЫТИЯ* ({start_n}-{end_n} из {total})\n"]
+        for row in rows:
+            username = escape_markdown(str(row["username"]), version=1)
+            ts = format_time(row["timestamp"])
+            review = (row["review"] or "").strip()
+            if review:
+                review = escape_markdown(review, version=1)
+                lines.append(f"• {ts} — *{username}*: _{review}_")
+            else:
+                lines.append(f"• {ts} — *{username}*")
+        text = "\n".join(lines)
+
+    nav = []
+    prev_offset = offset - limit
+    next_offset = offset + limit
+    if prev_offset >= 0:
+        nav.append(InlineKeyboardButton("⬅️ Ранее", callback_data=f"all_events:{prev_offset}"))
+    if next_offset < total:
+        nav.append(InlineKeyboardButton("➡️ Позже", callback_data=f"all_events:{next_offset}"))
+    kb_rows = []
+    if nav:
+        kb_rows.append(nav)
+    kb_rows.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
+
+    await query.edit_message_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(kb_rows),
+    )
+
+
+async def show_my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE, offset: int = 0):
     query = update.callback_query
     user = query.from_user
     username = get_username(user)
@@ -249,14 +371,45 @@ async def show_my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     board = await get_leaderboard()
     rank = next((i + 1 for i, r in enumerate(board) if r["username"] == username), "—")
 
+    events_limit = 15
+    user_total = await get_user_events_count(user.id)
+    if offset >= user_total and user_total > 0:
+        offset = max(0, user_total - (user_total % events_limit or events_limit))
+    events = await get_user_events_page(user.id, limit=events_limit, offset=offset)
+    event_lines = []
+    for row in events:
+        ts = format_time(row["timestamp"])
+        review = (row["review"] or "").strip()
+        if review:
+            review = escape_markdown(review, version=1)
+            event_lines.append(f"• {ts} — _{review}_")
+        else:
+            event_lines.append(f"• {ts}")
+    events_block = "\n".join(event_lines) if event_lines else "—"
+    start_n = offset + 1 if user_total else 0
+    end_n = min(offset + events_limit, user_total) if user_total else 0
+
+    nav = []
+    prev_offset = offset - events_limit
+    next_offset = offset + events_limit
+    if prev_offset >= 0 and user_total:
+        nav.append(InlineKeyboardButton("⬅️ Ранее", callback_data=f"my_stats:{prev_offset}"))
+    if next_offset < user_total:
+        nav.append(InlineKeyboardButton("➡️ Позже", callback_data=f"my_stats:{next_offset}"))
+    kb_rows = []
+    if nav:
+        kb_rows.append(nav)
+    kb_rows.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
+
     await query.edit_message_text(
         f"📊 *Твоя статистика*\n\n"
         f"👤 {username}\n"
         f"💩 Всего раз: *{total}*\n"
         f"📝 С отзывом: *{with_review}*\n"
-        f"🏆 Место в рейтинге: *{rank}*",
+        f"🏆 Место в рейтинге: *{rank}*\n\n"
+        f"🕒 *Твои события* ({start_n}-{end_n} из {user_total}):\n{events_block}",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="back")]])
+        reply_markup=InlineKeyboardMarkup(kb_rows)
     )
 
 
