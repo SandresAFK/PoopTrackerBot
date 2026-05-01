@@ -525,10 +525,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ─── ЗАПУСК ───────────────────────────────────────────────────
-async def main():
+def main():
     if not BOT_TOKEN:
         raise RuntimeError("Не задан BOT_TOKEN. Установи переменную окружения BOT_TOKEN и перезапусти бота.")
-    await init_db()
+
+    # Инициализируем БД в отдельном (коротком) event loop,
+    # чтобы не мешать loop'у, который создаст python-telegram-bot.
+    asyncio.run(init_db())
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -548,13 +551,8 @@ async def main():
     app.add_handler(conv)
 
     print("🚀 Бот запущен! Ctrl+C для остановки.")
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    try:
-        import nest_asyncio  # type: ignore
-        nest_asyncio.apply()
-    except Exception:
-        pass
-    asyncio.run(main())
+    main()
